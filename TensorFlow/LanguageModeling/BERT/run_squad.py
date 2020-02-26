@@ -102,6 +102,9 @@ flags.DEFINE_float("learning_rate", 5e-6, "The initial learning rate for Adam.")
 flags.DEFINE_bool("use_trt", False, "Whether to use TF-TRT")
 
 flags.DEFINE_bool("horovod", False, "Whether to use Horovod for multi-gpu runs")
+flags.DEFINE_integer("profile_steps", 0, 
+                     "Save profile data every profile_steps steps. If zero, disable profiling.")
+
 flags.DEFINE_float("num_train_epochs", 3.0,
                    "Total number of training epochs to perform.")
 
@@ -927,7 +930,6 @@ def main(_):
   config = tf.compat.v1.ConfigProto()
   learning_rate = FLAGS.learning_rate
   if FLAGS.horovod:
-
       tf.compat.v1.logging.info("Multi-GPU training with TF Horovod")
       tf.compat.v1.logging.info("hvd.size() = %d hvd.rank() = %d", hvd.size(), hvd.rank())
       global_batch_size = FLAGS.train_batch_size * hvd.size() * FLAGS.num_accumulation_steps
@@ -937,6 +939,12 @@ def main(_):
       config.gpu_options.visible_device_list = str(hvd.local_rank())
       if hvd.size() > 1:
           training_hooks.append(hvd.BroadcastGlobalVariablesHook(0))
+  if FLAGS.profile_steps > 0:
+    training_hooks.append(tf.train.ProfilerHook(
+      save_steps=FLAGS.profile_steps,
+      output_dir=FLAGS.output_dir,
+      show_dataflow=True,
+      show_memory=True))
   if FLAGS.use_xla:
     config.graph_options.optimizer_options.global_jit_level = tf.compat.v1.OptimizerOptions.ON_1
   run_config = tf.estimator.RunConfig(

@@ -403,23 +403,20 @@ def input_fn_builder(input_file, batch_size, seq_length, is_training, drop_remai
     # For eval, we want no shuffling and parallel reading doesn't matter.
     if is_training:
         d = tf.data.TFRecordDataset(input_file, num_parallel_reads=4)
-        d = d.prefetch(tf.data.experimental.AUTOTUNE)
         if hvd is not None: 
             d = d.shard(hvd.size(), hvd.rank())
-        d = d.shuffle(buffer_size=128)
         d = d.repeat()
+        d = d.shuffle(buffer_size=100)
     else:
         d = tf.data.TFRecordDataset(input_file)
-
-
     d = d.apply(
         tf.contrib.data.map_and_batch(
             lambda record: _decode_record(record, name_to_features),
             batch_size=batch_size,
             drop_remainder=drop_remainder,
             num_parallel_calls=tf.data.experimental.AUTOTUNE))
-
-    return d
+    d = d.prefetch(tf.data.experimental.AUTOTUNE)
+    return d.cache()
 
   return input_fn
 
